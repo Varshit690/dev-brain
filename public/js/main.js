@@ -212,8 +212,16 @@ function initWorkspaceTabs() {
         alert('Editor reset (demo)');
     });
 
-    // initial render for default tab
+    // initial render for all tabs so each panel is populated
     renderReasoning();
+    renderIssues();
+    renderOptimization();
+    renderComplexity();
+    renderFlow();
+    renderSecurity();
+    renderExecution();
+    renderHistory();
+    renderReport();
 }
 
 function initThreeJS() {
