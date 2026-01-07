@@ -61,9 +61,6 @@ app.post('/analyze', (req, res) => {
             const raw = lines[i];
             const line = raw.trim();
 
-            // update brace depth based on '{' and '}' occurrences
-            const open = (raw.match(/{/g) || []).length;
-            const close = (raw.match(/}/g) || []).length;
             // detect loop keywords (count multiple loops on the same line)
             const loopsHere = (line.match(/\bfor\b|\bwhile\b/g) || []).length;
             if (loopsHere > 0) {
