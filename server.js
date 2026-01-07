@@ -11,6 +11,8 @@ const { spawn } = require('child_process');
 app.post('/analyze', (req, res) => {
     const code = req.body && req.body.code;
     const language = req.body && req.body.language ? String(req.body.language).toLowerCase() : 'javascript';
+    console.log('[analyze] language=', language, 'codeLen=', code ? code.length : 0);
+    if (code && code.split) console.log('[analyze] firstLine=', code.split(/\r?\n/)[0]);
     if (!code) return res.status(400).json({ status: 'error', message: 'No code provided' });
 
     // If Python selected, run the Python AST analyzer; otherwise use a lightweight JS heuristic analyzer
@@ -59,16 +61,22 @@ app.post('/analyze', (req, res) => {
             const raw = lines[i];
             const line = raw.trim();
 
-            // detect loop keywords
-            if (/\bfor\b|\bwhile\b/.test(line)) {
-                // approximate nesting depth as current brace depth + 1
-                const depth = Math.max(1, braceDepth + 1);
-                maxDepth = Math.max(maxDepth, depth);
-                const loopType = /\bfor\b/.test(line) ? 'For-Loop' : 'While-Loop';
-                details.push(`Found ${loopType} at line ${i+1} (Depth: ${depth})`);
+            // update brace depth based on '{' and '}' occurrences
+            const open = (raw.match(/{/g) || []).length;
+            const close = (raw.match(/}/g) || []).length;
+            // detect loop keywords (count multiple loops on the same line)
+            const loopsHere = (line.match(/\bfor\b|\bwhile\b/g) || []).length;
+            if (loopsHere > 0) {
+                for (let k = 0; k < loopsHere; k++) {
+                    const depth = Math.max(1, braceDepth + k + 1);
+                    maxDepth = Math.max(maxDepth, depth);
+                    // determine loop type for this occurrence (prefer 'for' if present)
+                    const loopType = /\bfor\b/.test(line) ? 'For-Loop' : 'While-Loop';
+                    details.push(`Found ${loopType} at line ${i+1} (Depth: ${depth})`);
+                }
             }
 
-            // update brace depth based on '{' and '}' occurrences
+            // apply brace updates after counting loops
             const open = (raw.match(/{/g) || []).length;
             const close = (raw.match(/}/g) || []).length;
             braceDepth += open - close;
