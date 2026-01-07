@@ -196,6 +196,7 @@ function initWorkspaceTabs() {
 
     analyzeBtn.addEventListener('click', async () => {
         const code = editor.value || '';
+        const language = (document.getElementById('language-select') || {}).value || 'JavaScript';
         showTab('reasoning');
         reasoning.innerHTML = '<div class="card">Analyzing…</div>';
 
@@ -203,7 +204,7 @@ function initWorkspaceTabs() {
             const resp = await fetch('/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code })
+                body: JSON.stringify({ code, language })
             });
 
             const result = await resp.json();
