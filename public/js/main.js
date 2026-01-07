@@ -194,18 +194,67 @@ function initWorkspaceTabs() {
         });
     }
 
-    analyzeBtn.addEventListener('click', () => {
-        renderReasoning();
-        renderIssues();
-        renderOptimization();
-        renderComplexity();
-        renderFlow();
-        renderSecurity();
-        renderExecution();
-        renderHistory();
-        renderReport();
+    analyzeBtn.addEventListener('click', async () => {
+        const code = editor.value || '';
         showTab('reasoning');
+        reasoning.innerHTML = '<div class="card">Analyzing…</div>';
+
+        try {
+            const resp = await fetch('/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+
+            const result = await resp.json();
+            if (result.status && result.status === 'error') {
+                reasoning.innerHTML = `<div class="card issue-warning"><strong>Error</strong><div class="small-muted">${result.message || 'Analysis failed'}</div></div>`;
+            } else {
+                renderFromAnalysis(result);
+                // still populate other panels (some use mock content)
+                renderIssues();
+                renderOptimization();
+                renderComplexity();
+                renderFlow();
+                renderSecurity();
+                renderExecution();
+                renderHistory();
+                renderReport();
+            }
+        } catch (err) {
+            reasoning.innerHTML = `<div class="card issue-warning"><strong>Error</strong><div class="small-muted">${err.message}</div></div>`;
+        }
     });
+
+    function renderFromAnalysis(analysis) {
+        // Reasoning: use details/report
+        reasoning.innerHTML = '';
+        const details = analysis.details || [];
+        details.forEach((d, i) => {
+            const card = document.createElement('div');
+            card.className = 'card step-card';
+            card.innerHTML = `<div class="step-number">${i+1}</div><div><strong>${d}</strong></div>`;
+            reasoning.appendChild(card);
+        });
+
+        // Logical explanation / complexity from analyzer
+        const expl = document.createElement('div');
+        expl.className = 'card';
+        expl.innerHTML = `<strong>Logical Explanation</strong><p class="small-muted" style="margin-top:0.5rem">Estimated Complexity: <strong>${analysis.complexity || 'Unknown'}</strong></p>`;
+        reasoning.appendChild(expl);
+
+        const trace = document.createElement('div');
+        trace.className = 'card';
+        trace.innerHTML = `<strong>AI Thought Trace</strong><ul style="margin-top:0.5rem"><li>✔ Parsing code</li><li>✔ Building AST</li><li>✔ Detecting loops</li><li>✔ Analyzing conditions</li><li>✔ Generating explanation</li></ul>`;
+        reasoning.appendChild(trace);
+
+        // Complexity panel
+        complexity.innerHTML = '';
+        const ccard = document.createElement('div');
+        ccard.className = 'card';
+        ccard.innerHTML = `<div style="font-size:1.2rem;font-weight:700">Time Complexity: <span style="color:var(--accent-primary)">${analysis.complexity || 'Unknown'}</span></div><div class="small-muted" style="margin-top:0.5rem">Max loop depth: ${analysis.max_depth || 0}</div><div class="graph-placeholder" style="margin-top:0.75rem"></div>`;
+        complexity.appendChild(ccard);
+    }
 
     resetBtn.addEventListener('click', () => {
         editor.value = '';
