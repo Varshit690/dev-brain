@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevBrain-Ai | Code Reasoning Engine</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+    <div id="canvas-container"></div>
+    <header>
+        <div class="container">
+            <nav>
+                <a href="/" class="logo">
+                    <i data-lucide="brain-circuit"></i>
+                    DevBrain<span>.ai</span>
+                </a>
+                <div class="nav-links">
+                    <a href="#features">Features</a>
+                    <a href="#process">How it Works</a>
+                    <a href="#docs">Docs</a>
+                </div>
+                <div class="auth-buttons">
+                    <a href="/signin" class="btn btn-outline">Sign In</a>
+                    <a href="/signup" class="btn btn-primary">Get Started</a>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container hero-content">
+                <h1>
+                    The <span class="gradient-text">Reasoning Engine</span><br>
+                    for Code Agility
+                </h1>
+                <p>
+                    Mimics human developers by inferring logic, executing iterative plans,
+                    and solving complex coding tasks autonomously.
+                </p>
+                <div class="hero-actions">
+                    <a href="/signup" class="btn btn-primary" style="margin-right: 1rem;">Start Reasoning</a>
+                    <a href="#demo" class="btn btn-outline">Watch Demo</a>
+                </div>
+            </div>
+        </section>
+
+        <section id="features" class="features">
+            <div class="container">
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i data-lucide="cpu"></i>
+                        </div>
+                        <h3>Logical Inference</h3>
+                        <p>Detects flaws and explains code paths using advanced probabilistic models.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i data-lucide="layers"></i>
+                        </div>
+                        <h3>Multi-Step Planning</h3>
+                        <p>Decomposes complex tasks into executable steps with self-reflection.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i data-lucide="zap"></i>
+                        </div>
+                        <h3>Agentic Execution</h3>
+                        <p>Autonomously iterates on plans and validates results in real-time.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Workspace: Code Editor + Right Panel Tabs -->
+        <section id="workspace" class="workspace">
+            <div class="container workspace-grid">
+                <div class="editor-panel">
+                    <div class="editor-toolbar">
+                        <div class="toolbar-left">
+                            <select id="language-select">
+                                <option>JavaScript</option>
+                                <option>Python</option>
+                                <option>Java</option>
+                            </select>
+                            <button id="theme-toggle" class="btn btn-outline">🌙</button>
+                            <select id="mode-select">
+                                <option>Beginner</option>
+                                <option>Pro</option>
+                            </select>
+                        </div>
+                        <div class="toolbar-right">
+                            <button id="analyze-btn" class="btn btn-primary">Analyze</button>
+                            <button id="reset-btn" class="btn btn-outline">Reset</button>
+                        </div>
+                    </div>
+
+                    <textarea id="code-editor" class="code-editor" spellcheck="false">// Paste code here
+function findMax(arr) {
+    let max = -Infinity;
+    for (let i = 0; i < arr.length; i++) {
+        if (arr[i] > max) max = arr[i];
+    }
+    return max;
+}
+</textarea>
+                </div>
+
+                <aside class="right-panel">
+                    <div class="tab-list" role="tablist">
+                        <button class="tab-btn active" data-tab="reasoning">Reasoning</button>
+                        <button class="tab-btn" data-tab="issues">Issues</button>
+                        <button class="tab-btn" data-tab="optimization">Optimization</button>
+                        <button class="tab-btn" data-tab="complexity">Complexity</button>
+                        <button class="tab-btn" data-tab="flow">Flow</button>
+                        <button class="tab-btn" data-tab="security">Security</button>
+                        <button class="tab-btn" data-tab="execution">Execution</button>
+                        <button class="tab-btn" data-tab="history">History</button>
+                        <button class="tab-btn" data-tab="report">Report</button>
+                    </div>
+
+                    <div class="tab-contents">
+                        <div class="tab-content active" id="reasoning">
+                            <!-- Reasoning content populated by JS -->
+                        </div>
+                        <div class="tab-content" id="issues"></div>
+                        <div class="tab-content" id="optimization"></div>
+                        <div class="tab-content" id="complexity"></div>
+                        <div class="tab-content" id="flow"></div>
+                        <div class="tab-content" id="security"></div>
+                        <div class="tab-content" id="execution"></div>
+                        <div class="tab-content" id="history"></div>
+                        <div class="tab-content" id="report"></div>
+                    </div>
+                </aside>
+            </div>
+        </section>
+    </main>
+
+    <script src="js/main.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>
