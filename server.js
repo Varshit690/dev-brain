@@ -62,6 +62,8 @@ app.post('/analyze', (req, res) => {
             const line = raw.trim();
 
             // detect loop keywords (count multiple loops on the same line)
+            console.log('[analyze] checking line:', line.slice(0,120));
+            console.log('[analyze] includes for?', line.includes('for'), 'includes while?', line.includes('while'));
             const loopsHere = (line.match(/\bfor\b|\bwhile\b/g) || []).length;
             if (loopsHere > 0) {
                 for (let k = 0; k < loopsHere; k++) {
@@ -71,6 +73,7 @@ app.post('/analyze', (req, res) => {
                     const loopType = /\bfor\b/.test(line) ? 'For-Loop' : 'While-Loop';
                     details.push(`Found ${loopType} at line ${i+1} (Depth: ${depth})`);
                 }
+                console.log('[analyze] loopsHere=', loopsHere, 'braceDepthBefore=', braceDepth);
             }
 
             // apply brace updates after counting loops
@@ -104,6 +107,14 @@ app.get('/signin', (req, res) => {
 
 app.get('/signup', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+});
+
+app.get('/contact', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'contact.html'));
+});
+
+app.get('/how-it-works', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'how-it-works.html'));
 });
 
 app.listen(PORT, () => {

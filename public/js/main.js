@@ -1,5 +1,7 @@
 // Basic form handling demo
 document.addEventListener('DOMContentLoaded', () => {
+    // Check authentication state on page load
+    checkAuthState();
 
     // Sign In Form
     const signinForm = document.getElementById('signin-form');
@@ -8,15 +10,22 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const btn = signinForm.querySelector('button');
             const originalText = btn.innerText;
+            const email = document.getElementById('email').value;
 
             btn.innerText = 'Authenticating...';
             btn.style.opacity = '0.7';
 
             setTimeout(() => {
+                // Extract username from email (before @)
+                const username = email.split('@')[0];
+                // Store authentication state
+                localStorage.setItem('isAuthenticated', 'true');
+                localStorage.setItem('username', username);
+
                 alert('Demo: Successfully Signed In!');
                 btn.innerText = originalText;
                 btn.style.opacity = '1';
-                window.location.href = '/';
+                window.location.href = '/#workspace';
             }, 1000);
         });
     }
@@ -43,7 +52,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initThreeJS();
     initWorkspaceTabs();
+
+    // Handle Start Reasoning button - simplified approach
+    // Handle Start Reasoning button - always scroll to workspace
+    const startReasoningBtn = document.querySelector('.hero-actions a[href="#workspace"]');
+    if (startReasoningBtn) {
+        startReasoningBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            const workspaceSection = document.getElementById('workspace');
+            if (workspaceSection) {
+                workspaceSection.scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+    }
+
+    // Handle navigation links
+    // Link handled directly in HTML now
+
+    // Link handled directly in HTML now
 });
+
+// Authentication state management functions
+function checkAuthState() {
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+    const username = localStorage.getItem('username');
+    const authButtons = document.querySelector('.auth-buttons');
+
+    if (isAuthenticated && username && authButtons) {
+        // Show authenticated user UI
+        authButtons.innerHTML = `
+            <span class="user-info">Welcome, ${username}!</span>
+            <button id="logout-btn" class="btn btn-outline">Logout</button>
+        `;
+
+        // Add logout functionality
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                localStorage.removeItem('isAuthenticated');
+                localStorage.removeItem('username');
+                location.reload(); // Reload to show sign in buttons again
+            });
+        }
+    }
+}
 
 function initWorkspaceTabs() {
     const tabs = document.querySelectorAll('.tab-btn');
@@ -83,7 +135,7 @@ function initWorkspaceTabs() {
         steps.forEach((s, i) => {
             const card = document.createElement('div');
             card.className = 'card step-card';
-            card.innerHTML = `<div class="step-number">${i+1}</div><div><strong>${s}</strong><div class="small-muted">Step ${i+1}</div></div>`;
+            card.innerHTML = `<div class="step-number">${i + 1}</div><div><strong>${s}</strong><div class="small-muted">Step ${i + 1}</div></div>`;
             reasoning.appendChild(card);
         });
 
@@ -119,7 +171,7 @@ function initWorkspaceTabs() {
         optimization.appendChild(comp);
 
         document.getElementById('apply-opt').addEventListener('click', () => {
-            const suggested = `const map = new Map();\n// suggested approach`; 
+            const suggested = `const map = new Map();\n// suggested approach`;
             editor.value = suggested + "\n\n" + editor.value;
             alert('Suggestion applied to editor (demo)');
         });
@@ -234,7 +286,7 @@ function initWorkspaceTabs() {
         details.forEach((d, i) => {
             const card = document.createElement('div');
             card.className = 'card step-card';
-            card.innerHTML = `<div class="step-number">${i+1}</div><div><strong>${d}</strong></div>`;
+            card.innerHTML = `<div class="step-number">${i + 1}</div><div><strong>${d}</strong></div>`;
             reasoning.appendChild(card);
         });
 
