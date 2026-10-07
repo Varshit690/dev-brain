@@ -1,96 +1,74 @@
+require('dotenv').config({ quiet: true });
 const express = require('express');
 const path = require('path');
+const mongoose = require('mongoose');
+const { analyzeComplexity } = require('./engine/complexityAnalyzer');
+const { scanVulnerabilities } = require('./engine/vulnerabilityScanner');
+const authRoutes = require('./routes/auth');
+const { router: historyRoutes, saveAnalysisRecord } = require('./routes/history');
+const { optionalAuthMiddleware } = require('./middleware/auth');
+
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/devbrain';
+
+// Connect to MongoDB with fast timeout fallback (skip in test runner unless URI provided)
+if (process.env.NODE_ENV !== 'test' || process.env.MONGODB_URI) {
+    mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 2000 })
+        .then(() => console.log('Connected to MongoDB'))
+        .catch(() => console.log('MongoDB not connected; active in-memory store for auth/history'));
+}
 
 app.use(express.json({ limit: '1mb' }));
 
-const { spawn } = require('child_process');
+// Auth & History routes
+app.use('/api/auth', authRoutes);
+app.use('/api/history', historyRoutes);
 
-// POST /analyze - runs the Python analyzer with provided code (in request body)
-app.post('/analyze', (req, res) => {
-    const code = req.body && req.body.code;
-    const language = req.body && req.body.language ? String(req.body.language).toLowerCase() : 'javascript';
-    console.log('[analyze] language=', language, 'codeLen=', code ? code.length : 0);
-    if (code && code.split) console.log('[analyze] firstLine=', code.split(/\r?\n/)[0]);
-    if (!code) return res.status(400).json({ status: 'error', message: 'No code provided' });
+// POST /analyze - pure Node.js AST complexity analysis and vulnerability scanning
+app.post('/analyze', optionalAuthMiddleware, async (req, res) => {
+    try {
+        const code = req.body && req.body.code;
+        const language = req.body && req.body.language ? String(req.body.language).toLowerCase() : 'javascript';
 
-    // If Python selected, run the Python AST analyzer; otherwise use a lightweight JS heuristic analyzer
-    if (language.startsWith('py')) {
-        // Spawn python process and pass code via stdin
-        const py = spawn('python', [path.join(__dirname, 'engine', 'analyzer.py')]);
-
-        let stdout = '';
-        let stderr = '';
-
-        py.stdout.on('data', (data) => { stdout += data.toString(); });
-        py.stderr.on('data', (data) => { stderr += data.toString(); });
-
-        py.on('close', (codeExit) => {
-            if (stderr) {
-                try {
-                    const parsed = JSON.parse(stdout || '{}');
-                    return res.json(parsed);
-                } catch (e) {
-                    return res.status(500).json({ status: 'error', message: stderr || 'Analyzer failed' });
-                }
-            }
-
-            try {
-                const parsed = JSON.parse(stdout || '{}');
-                return res.json(parsed);
-            } catch (e) {
-                return res.status(500).json({ status: 'error', message: 'Invalid analyzer output' });
-            }
-        });
-
-        // Send code to analyzer stdin
-        py.stdin.write(code);
-        py.stdin.end();
-        return;
-    }
-
-    // Heuristic analyzer for Java, C++, JavaScript and other C-like languages
-    function analyzeJavaCpp(codeStr, langLabel) {
-        const lines = codeStr.split(/\r?\n/);
-        let maxDepth = 0;
-        let braceDepth = 0;
-        const details = [];
-
-        for (let i = 0; i < lines.length; i++) {
-            const raw = lines[i];
-            const line = raw.trim();
-
-            // detect loop keywords (count multiple loops on the same line)
-            console.log('[analyze] checking line:', line.slice(0,120));
-            console.log('[analyze] includes for?', line.includes('for'), 'includes while?', line.includes('while'));
-            const loopsHere = (line.match(/\bfor\b|\bwhile\b/g) || []).length;
-            if (loopsHere > 0) {
-                for (let k = 0; k < loopsHere; k++) {
-                    const depth = Math.max(1, braceDepth + k + 1);
-                    maxDepth = Math.max(maxDepth, depth);
-                    // determine loop type for this occurrence (prefer 'for' if present)
-                    const loopType = /\bfor\b/.test(line) ? 'For-Loop' : 'While-Loop';
-                    details.push(`Found ${loopType} at line ${i+1} (Depth: ${depth})`);
-                }
-                console.log('[analyze] loopsHere=', loopsHere, 'braceDepthBefore=', braceDepth);
-            }
-
-            // apply brace updates after counting loops
-            const open = (raw.match(/{/g) || []).length;
-            const close = (raw.match(/}/g) || []).length;
-            braceDepth += open - close;
-            if (braceDepth < 0) braceDepth = 0;
+        if (!code) {
+            return res.status(400).json({ status: 'error', message: 'No code provided' });
         }
 
-        const complexity = maxDepth === 0 ? 'O(1)' : (maxDepth === 1 ? 'O(n)' : `O(n^${maxDepth})`);
-        // add high-level message
-        details.unshift(`Analyzing language: ${langLabel}`);
-        return { complexity, max_depth: maxDepth, details, status: 'success' };
-    }
+        const complexityResult = await analyzeComplexity(code, language);
+        if (complexityResult.status === 'error') {
+            return res.json(complexityResult);
+        }
 
-    const result = analyzeJavaCpp(code, language);
-    return res.json(result);
+        const vulnerabilities = scanVulnerabilities(code);
+
+        // If user is authenticated, save record to history
+        if (req.user && req.user.id) {
+            try {
+                await saveAnalysisRecord({
+                    userId: req.user.id,
+                    code,
+                    language,
+                    complexity: complexityResult.complexity,
+                    max_depth: complexityResult.max_depth,
+                    details: complexityResult.details,
+                    vulnerabilities
+                });
+            } catch (err) {
+                // Non-blocking history save
+            }
+        }
+
+        return res.json({
+            complexity: complexityResult.complexity,
+            max_depth: complexityResult.max_depth,
+            details: complexityResult.details,
+            vulnerabilities,
+            status: 'success'
+        });
+    } catch (err) {
+        return res.status(500).json({ status: 'error', message: err.message || 'Analysis failed' });
+    }
 });
 
 // Serve static files from the 'public' directory
@@ -117,6 +95,10 @@ app.get('/how-it-works', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'how-it-works.html'));
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server running at http://localhost:${PORT}`);
+    });
+}
+
+module.exports = app;

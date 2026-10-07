@@ -6,47 +6,78 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sign In Form
     const signinForm = document.getElementById('signin-form');
     if (signinForm) {
-        signinForm.addEventListener('submit', (e) => {
+        signinForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = signinForm.querySelector('button');
             const originalText = btn.innerText;
             const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
 
             btn.innerText = 'Authenticating...';
             btn.style.opacity = '0.7';
 
-            setTimeout(() => {
-                // Extract username from email (before @)
-                const username = email.split('@')[0];
-                // Store authentication state
-                localStorage.setItem('isAuthenticated', 'true');
-                localStorage.setItem('username', username);
-
-                alert('Demo: Successfully Signed In!');
+            try {
+                const resp = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await resp.json();
+                if (data.status === 'success' && data.token) {
+                    localStorage.setItem('isAuthenticated', 'true');
+                    localStorage.setItem('username', data.user.name || data.user.email);
+                    localStorage.setItem('authToken', data.token);
+                    window.location.href = '/#workspace';
+                } else {
+                    alert(data.message || 'Login failed. Please check your credentials.');
+                    btn.innerText = originalText;
+                    btn.style.opacity = '1';
+                }
+            } catch (err) {
+                alert('Sign in failed: ' + err.message);
                 btn.innerText = originalText;
                 btn.style.opacity = '1';
-                window.location.href = '/#workspace';
-            }, 1000);
+            }
         });
     }
 
     // Sign Up Form
     const signupForm = document.getElementById('signup-form');
     if (signupForm) {
-        signupForm.addEventListener('submit', (e) => {
+        signupForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = signupForm.querySelector('button');
             const originalText = btn.innerText;
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
 
             btn.innerText = 'Creating Account...';
             btn.style.opacity = '0.7';
 
-            setTimeout(() => {
-                alert('Demo: Account Created!');
+            try {
+                const resp = await fetch('/api/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password })
+                });
+                const data = await resp.json();
+                if (data.status === 'success' && data.token) {
+                    localStorage.setItem('isAuthenticated', 'true');
+                    localStorage.setItem('username', data.user.name || name);
+                    localStorage.setItem('authToken', data.token);
+                    alert('Account created successfully!');
+                    window.location.href = '/#workspace';
+                } else {
+                    alert(data.message || 'Signup failed.');
+                    btn.innerText = originalText;
+                    btn.style.opacity = '1';
+                }
+            } catch (err) {
+                alert('Sign up failed: ' + err.message);
                 btn.innerText = originalText;
                 btn.style.opacity = '1';
-                window.location.href = '/signin';
-            }, 1000);
+            }
         });
     }
 
@@ -91,6 +122,7 @@ function checkAuthState() {
             logoutBtn.addEventListener('click', () => {
                 localStorage.removeItem('isAuthenticated');
                 localStorage.removeItem('username');
+                localStorage.removeItem('authToken');
                 location.reload(); // Reload to show sign in buttons again
             });
         }
@@ -193,12 +225,24 @@ function initWorkspaceTabs() {
         flow.appendChild(flowBox);
     }
 
-    function renderSecurity() {
+    function renderSecurity(vulnerabilities) {
         security.innerHTML = '';
-        const sec = document.createElement('div');
-        sec.className = 'card issue-critical';
-        sec.innerHTML = `<strong>🔐 Hardcoded Secret Detected</strong><div class="small-muted">Line: 5</div><p style="margin-top:0.5rem">API key is directly written in code. Fix: Use environment variables.</p>`;
-        security.appendChild(sec);
+        if (!vulnerabilities || vulnerabilities.length === 0) {
+            const sec = document.createElement('div');
+            sec.className = 'card';
+            sec.innerHTML = `<strong>🛡️ Security Scan Clear</strong><p class="small-muted" style="margin-top:0.5rem">No hardcoded secrets or dangerous execution calls detected.</p>`;
+            security.appendChild(sec);
+            return;
+        }
+
+        vulnerabilities.forEach((v) => {
+            const sec = document.createElement('div');
+            const isCrit = v.severity === 'Critical';
+            sec.className = `card ${isCrit ? 'issue-critical' : 'issue-warning'}`;
+            const icon = isCrit ? '🚨' : '🔐';
+            sec.innerHTML = `<strong>${icon} ${v.type} [${v.severity}]</strong><div class="small-muted">Line: ${v.line}</div><p style="margin-top:0.5rem">${v.message}</p>`;
+            security.appendChild(sec);
+        });
     }
 
     function renderExecution() {
@@ -214,18 +258,47 @@ function initWorkspaceTabs() {
         execution.appendChild(mem);
     }
 
-    function renderHistory() {
+    async function renderHistory() {
         history.innerHTML = '';
-        const list = ['Analysis #3 – 1:10 PM – O(n)', 'Analysis #2 – 12:45 PM – O(n)', 'Analysis #1 – 12:30 PM – O(n²)'];
-        list.forEach((l, idx) => {
-            const it = document.createElement('div');
-            it.className = 'history-item card';
-            it.innerText = l;
-            it.addEventListener('click', () => {
-                alert('Loaded ' + l + ' (demo)');
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+            history.innerHTML = `<div class="card"><p class="small-muted">Sign in with an account to view and restore your analysis history across sessions.</p></div>`;
+            return;
+        }
+
+        try {
+            const resp = await fetch('/api/history', {
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-            history.appendChild(it);
-        });
+            const data = await resp.json();
+            if (data.status === 'success' && data.history && data.history.length > 0) {
+                data.history.forEach((item) => {
+                    const it = document.createElement('div');
+                    it.className = 'history-item card';
+                    const timeStr = item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                    it.innerHTML = `<div><strong>${(item.language || 'JS').toUpperCase()} • ${item.complexity}</strong> <span class="small-muted">${timeStr}</span></div><div class="small-muted" style="margin-top:0.3rem; font-family:monospace; font-size:0.75rem;">${(item.code || '').split('\n')[0].slice(0, 32)}...</div>`;
+                    it.style.cursor = 'pointer';
+                    it.title = 'Click to reload code in editor';
+                    it.addEventListener('click', () => {
+                        editor.value = item.code;
+                        const langSelect = document.getElementById('language-select');
+                        if (langSelect && item.language) {
+                            for (let opt of langSelect.options) {
+                                if (opt.text.toLowerCase().startsWith(item.language.toLowerCase().slice(0, 2))) {
+                                    langSelect.value = opt.text;
+                                    break;
+                                }
+                            }
+                        }
+                    });
+                    history.appendChild(it);
+                });
+            } else {
+                history.innerHTML = `<div class="card"><p class="small-muted">No analysis history found. Run an analysis to start tracking!</p></div>`;
+            }
+        } catch (e) {
+            history.innerHTML = `<div class="card"><p class="small-muted">Unable to load history.</p></div>`;
+        }
     }
 
     function renderReport() {
@@ -252,10 +325,16 @@ function initWorkspaceTabs() {
         showTab('reasoning');
         reasoning.innerHTML = '<div class="card">Analyzing…</div>';
 
+        const token = localStorage.getItem('authToken');
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
         try {
             const resp = await fetch('/analyze', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({ code, language })
             });
 
@@ -264,12 +343,10 @@ function initWorkspaceTabs() {
                 reasoning.innerHTML = `<div class="card issue-warning"><strong>Error</strong><div class="small-muted">${result.message || 'Analysis failed'}</div></div>`;
             } else {
                 renderFromAnalysis(result);
-                // still populate other panels (some use mock content)
+                // populate remaining secondary panels
                 renderIssues();
                 renderOptimization();
-                renderComplexity();
                 renderFlow();
-                renderSecurity();
                 renderExecution();
                 renderHistory();
                 renderReport();
@@ -280,7 +357,7 @@ function initWorkspaceTabs() {
     });
 
     function renderFromAnalysis(analysis) {
-        // Reasoning: use details/report
+        // Reasoning: step-by-step loop and structure details
         reasoning.innerHTML = '';
         const details = analysis.details || [];
         details.forEach((d, i) => {
@@ -290,23 +367,35 @@ function initWorkspaceTabs() {
             reasoning.appendChild(card);
         });
 
-        // Logical explanation / complexity from analyzer
+        // Dynamic logical explanation generated from analysis response
+        let explanationText = '';
+        if (analysis.max_depth === 0) {
+            explanationText = `The analyzed code contains sequential statements without iterative loops, resulting in constant time complexity ${analysis.complexity || 'O(1)'}. Execution time remains predictable regardless of input scale.`;
+        } else if (analysis.max_depth === 1) {
+            explanationText = `The analyzed code contains a single level of iteration (maximum loop depth of 1). Execution scales linearly with input size, yielding ${analysis.complexity || 'O(n)'} time complexity.`;
+        } else {
+            explanationText = `The analyzed code contains nested loops with a maximum depth of ${analysis.max_depth}. The execution time scales polynomially with input size, resulting in ${analysis.complexity || `O(n^${analysis.max_depth})`} complexity.`;
+        }
+
         const expl = document.createElement('div');
         expl.className = 'card';
-        expl.innerHTML = `<strong>Logical Explanation</strong><p class="small-muted" style="margin-top:0.5rem">Estimated Complexity: <strong>${analysis.complexity || 'Unknown'}</strong></p>`;
+        expl.innerHTML = `<strong>Logical Explanation</strong><p class="small-muted" style="margin-top:0.5rem">${explanationText}</p>`;
         reasoning.appendChild(expl);
 
         const trace = document.createElement('div');
         trace.className = 'card';
-        trace.innerHTML = `<strong>AI Thought Trace</strong><ul style="margin-top:0.5rem"><li>✔ Parsing code</li><li>✔ Building AST</li><li>✔ Detecting loops</li><li>✔ Analyzing conditions</li><li>✔ Generating explanation</li></ul>`;
+        trace.innerHTML = `<strong>AI Thought Trace</strong><ul style="margin-top:0.5rem"><li>✔ Parsing code AST</li><li>✔ Identifying loop structures</li><li>✔ Measuring loop nesting depth</li><li>✔ Scanning for vulnerabilities</li><li>✔ Computing complexity class</li></ul>`;
         reasoning.appendChild(trace);
 
-        // Complexity panel
+        // Complexity panel: display real complexity and max_depth
         complexity.innerHTML = '';
         const ccard = document.createElement('div');
         ccard.className = 'card';
         ccard.innerHTML = `<div style="font-size:1.2rem;font-weight:700">Time Complexity: <span style="color:var(--accent-primary)">${analysis.complexity || 'Unknown'}</span></div><div class="small-muted" style="margin-top:0.5rem">Max loop depth: ${analysis.max_depth || 0}</div><div class="graph-placeholder" style="margin-top:0.75rem"></div>`;
         complexity.appendChild(ccard);
+
+        // Security panel: render detected vulnerabilities
+        renderSecurity(analysis.vulnerabilities);
     }
 
     resetBtn.addEventListener('click', () => {
